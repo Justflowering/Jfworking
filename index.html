@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>서무도우미(build.ver.20260514)</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- 엑셀 서식 적용 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js"></script>
+    <!-- FontAwesome 아이콘 라이브러리 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- 앱 실행 로그인 모달 -->
+    <div id="appLoginModal" class="modal-overlay" style="display: flex; z-index: 999999; background-color: #2c3e50;">
+        <div class="modal-content card" style="width: 350px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+            <h2 style="margin-top: 0; color: var(--primary-color);">서무도우미 로그인</h2>
+            <p class="hint">프로그램을 사용하려면 발급받은 계정으로 로그인하세요.</p>
+            <div class="input-group" style="text-align: left;">
+                <label for="appLoginId">아이디</label>
+                <input type="text" id="appLoginId" placeholder="아이디 입력" style="width: 100%;">
+            </div>
+            <div class="input-group" style="text-align: left; margin-bottom: 10px;">
+                <label for="appLoginPw">비밀번호</label>
+                <div style="position: relative;">
+                    <input type="password" id="appLoginPw" placeholder="비밀번호 입력" style="width: 100%; padding-right: 30px;">
+                    <i class="fa-solid fa-eye-slash toggle-password" data-target="appLoginPw" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #7f8c8d;"></i>
+                </div>
+            </div>
+            <div id="appLoginError" style="color: #e74c3c; font-size: 0.85em; font-weight: bold; margin-bottom: 15px; display: none; text-align: left;">아이디 또는 비밀번호가 일치하지 않습니다.</div>
+            <button id="btnAppLogin" class="primary-btn" style="width: 100%; height: 40px; font-size: 1.1em;">로그인</button>
+        </div>
+    </div>
+
+    <div class="app-layout">
+        <!-- 좌측 사이드바 영역 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>서무도우미</h1>
+                <span class="version-tag">울산광역시 남구 (build.20260514)</span>
+            </div>
+            
+            <nav class="tabs">
+                <button class="tab-btn active" data-target="tab-db"><i class="fa-solid fa-address-card"></i> 직원신상명세서</button>
+                <button class="tab-btn" data-target="tab-duty" id="tabBtnDuty" style="display: none;"><i class="fa-solid fa-calendar-check"></i> 당직관리</button>
+                <button class="tab-btn" data-target="tab-overtime"><i class="fa-solid fa-clock"></i> 초과근무수당</button>
+                <button class="tab-btn" data-target="tab-meal"><i class="fa-solid fa-utensils"></i> 특근매식비</button>
+                <button class="tab-btn" data-target="tab-local-trip"><i class="fa-solid fa-car-side"></i> 관내출장</button>
+                <button class="tab-btn" data-target="tab-out-trip"><i class="fa-solid fa-train"></i> 관외출장</button>
+            </nav>
+            <div style="flex-grow: 1;"></div>
+            <nav class="tabs bottom-tabs">
+                <button class="tab-btn" data-target="tab-settings"><i class="fa-solid fa-gear"></i> 환경 설정</button>
+            </nav>
+        </aside>
+
+        <!-- 우측 메인 콘텐츠 영역 -->
+        <main class="main-content">
+            <!-- 탭 1: 직원신상명세서 -->
+            <div id="tab-db" class="tab-content active card">
+                <h2>직원신상명세서
+                    <span class="tooltip">❓
+                        <span class="tooltiptext">💡 <b>사용 안내</b>
+1. 필요 파일을 준비해 주세요. (근무형태목록, custform 또는 거래처명단)
+ - 인사랑 - 근무상황관리 - 일반근무자관리 - [모든내역조회] 체크해제 - 조회 - 엑셀 다운로드
+ - 차세대지방재정 - 최신 수당지급내역 커스텀폼(Custom Form) 엑셀 다운로드
+2. 2개를 업로드하여 명세서를 만듭니다.
+3. 명세서는 자동 저장되며, 표를 클릭해 직접 내용을 수정할 수 있습니다.
+4. 수정한 데이터는 다른 탭에 즉시 반영되며 엑셀로 다운로드 가능합니다.</span>
+                    </span>
+                </h2>
+                <hr>
+                
+                <!-- 모드 선택 화면 -->
+                <div id="db-mode-select" style="display: flex; flex-direction: column; align-items: center; gap: 20px; margin: 40px 0;">
+                    <button id="btnModeNew" class="primary-btn" style="min-width: 260px; padding: 25px 50px; font-size: 1.25em; line-height: 1.5;">새 명세서 생성<br><span style="font-size: 0.8em; font-weight: normal;">(최초 사용자)</span></button>
+                    <button id="btnModeExisting" class="primary-btn" style="min-width: 260px; background-color: #2c3e50; padding: 25px 50px; font-size: 1.25em; line-height: 1.5;">기존 명세서 불러오기<br><span style="font-size: 0.8em; font-weight: normal;">(기존 사용자)</span></button>
+                </div>
+
+                <!-- 새 명세서 생성 화면 -->
+                <div id="db-new-section" style="display: none;">
+                    <button class="btn-back" id="btnBackFromNew">🔙 뒤로가기</button>
+                    <h3>새 명세서 생성</h3>
+                    <div class="input-group">
+                        <label for="dbFiles">엑셀 파일 업로드 (.xls/.xlsx)</label>
+                        <p class="hint" style="margin-top: 0;">근무형태목록과 금융기관정보 파일을 한 번에 다중 선택하거나, 따로따로 선택하여 올릴 수 있습니다.<br>(최소 근무형태목록 필수)</p>
+                        <input type="file" id="dbFiles" accept=".xls,.xlsx" multiple>
+                        <span id="dbFilesName" class="file-name-display"></span>
+                    </div>
+                    <button id="btnProcessExcel" class="primary-btn">데이터 병합 및 명세서 생성</button>
+                </div>
+
+                <!-- 기존 명세서 불러오기 화면 -->
+                <div id="db-existing-section" style="display: none;">
+                    <button class="btn-back" id="btnBackFromExisting">🔙 뒤로가기</button>
+                    <h3>기존 명세서 불러오기</h3>
+                    <div class="input-group">
+                        <label for="rosterFile">직원신상명세서 파일 (.xls/.xlsx)</label>
+                        <input type="file" id="rosterFile" accept=".xls,.xlsx">
+                        <span id="rosterFileName" class="file-name-display"></span>
+                    </div>
+                    <button id="btnLoadRoster" class="primary-btn">명세서 불러오기</button>
+                </div>
+
+                <div id="dbStatus" class="status-msg" style="margin-top: 20px;"></div>
+
+                <!-- 명세서 수정 및 다운로드 영역 -->
+                <div id="db-editor-section" style="display: none; margin-top: 30px;">
+                    <hr style="margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h3 style="margin: 0;">명세서 확인 및 내용 수정</h3>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <button id="btnResetRoster" class="primary-btn" style="background-color: var(--btn-cancel-bg); padding: 6px 14px; font-size: 0.9em;">🔙 뒤로가기</button>
+                            <button id="btnDownloadRoster" class="primary-btn btn-excel" style="padding: 6px 14px; font-size: 0.9em;">💾 엑셀 다운로드</button>
+                            <div id="rosterActionButtons" style="display: flex; align-items: center; gap: 8px;">
+                                <button id="btnDeleteSelectedRoster" class="primary-btn danger-btn" style="padding: 6px 14px; font-size: 0.9em;">🗑️ 선택항목 삭제</button>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="hint" style="margin: 0 0 10px 0;">셀을 클릭하여 내용을 수정할 수 있습니다. 행(가로줄)을 클릭하면 선택되어 삭제가 가능합니다.</p>
+                    <div id="rosterEditorTable" class="table-container" style="max-height: 500px; overflow-y: auto; overflow-x: auto;"></div>
+                </div>
+            </div>
+
+            <!-- 탭 2: 당직관리 -->
+            <div id="tab-duty" class="tab-content card">
+                <h2>당직관리
+                    <span class="tooltip">❓
+                        <span class="tooltiptext">💡 <b>사용 안내</b>
+1. 달력생성
+2. 당직순서 버튼으로 직원신상명세서 상의 직원 로딩
+3. 순서 지정모드 설정 후 순서대로 클릭하여 입력
+4. 전월 마지막 당직자를 선택하면, 그 다음 순서부터 순번 진행
+5. 자동배치를 누르면 달력에 인원 투입.
+6. 명단 다운로드를 통해 인사랑 업로드
+7. 달력 다운로드를 통해 직원 공지.
+8. 당직명령부 엑셀을 업로드하여 당직내역서 및 지급내역서 생성</span>
+                    </span>
+                </h2>
+                <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+                    <button class="sub-tab-btn primary-btn" data-target="duty-order" style="background-color: #3498db;">당직 순서</button>
+                    <button class="sub-tab-btn primary-btn" data-target="duty-allowance" style="background-color: #ecf0f1; color: #333;">당직수당 지급</button>
+                </div>
+                
+                <!-- 하위 탭: 당직 순서 -->
+                <div id="duty-order" class="sub-tab-content">
+                    <div style="display: flex; gap: 20px;">
+                        <div style="flex: 1; border: 1px solid #ddd; padding: 10px; border-radius: 4px; background: #f8f9fa; display: flex; flex-direction: column; gap: 10px; width: 490px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <h3 style="margin:0;">당직 순서 설정</h3>
+                                <button id="btnManageExclusions" class="primary-btn" style="background-color: #e67e22; padding: 4px 10px;">예외(제외) 기간 관리</button>
+                            </div>
+                            <div style="font-size: 1.05em; display: flex; align-items: center; gap: 10px;">
+                                <b>당직 운영 방식:</b>
+                                <select id="dutyOperationMode" class="overtime-input" style="width: 140px;">
+                                    <option value="separate">평일/주말 분리</option>
+                                    <option value="combined">평일/주말 통합</option>
+                                </select>
+                            </div>
+                            <div id="dutyOrderModeContainer" style="margin-bottom: 5px; font-size: 1.1em;">
+                                <b>순서 지정 모드:</b> 
+                                <label><input type="radio" name="dutyOrderMode" value="weekday" checked> 평일</label>
+                                <label><input type="radio" name="dutyOrderMode" value="weekend"> 주말</label>
+                            </div>
+                            <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+                                <input type="text" id="manualAddEmployeeName" placeholder="직원명 수동 추가" class="overtime-input" style="flex: 1;">
+                                <button id="btnAddManualEmployee" class="primary-btn" style="background-color: #28a745; padding: 4px;">추가</button>
+                            </div>
+                            <button id="btnAutoLoadEmployees" class="primary-btn" style="background-color: #8e44ad; padding: 4px; margin-bottom: 5px;">명세서 직원 순서대로 전체 불러오기</button>
+                            <div id="dutyEmployeeList" style="display: flex; flex-wrap: wrap; gap: 5px; max-height: 150px; overflow-y: auto; margin-bottom: 5px;"></div>
+                            
+                            <div style="display: flex; gap: 10px;">
+                                <div style="flex: 1; display: flex; flex-direction: column;">
+                                    <h5 id="labelWeekdayOrder" style="margin: 0 0 5px 0;">[평일] 순서</h5>
+                                    <div id="dutyWeekdayList" style="flex: 1; display: flex; flex-direction: column; gap: 3px; min-height: 120px; max-height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 5px; background: #fff;"></div>
+                                </div>
+                                <div id="containerWeekendOrder" style="flex: 1; display: flex; flex-direction: column;">
+                                    <h5 style="margin: 0 0 5px 0;">[주말] 순서</h5>
+                                    <div id="dutyWeekendList" style="flex: 1; display: flex; flex-direction: column; gap: 3px; min-height: 120px; max-height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 5px; background: #fff;"></div>
+                                </div>
+                            </div>
+                            <button id="btnCopyWeekdayToWeekend" class="primary-btn" style="background-color: #2c3e50; padding: 4px; margin-top: 5px;">평일 순서를 주말 순서로 복사</button>
+                            <div style="display: flex; gap: 5px; margin-top: 5px;">
+                                <button id="btnResetDutyOrder" class="primary-btn" style="flex: 1; background-color: #95a5a6; padding: 4px;">순서 초기화</button>
+                                <button id="btnSaveDutyOrder" class="primary-btn" style="flex: 1; padding: 4px;">순서 저장</button>
+                            </div>
+                            <hr style="margin: 5px 0;">
+                            <button id="btnAutoAssignDuty" class="primary-btn" style="background-color: #f39c12; width: 100%; margin-top: 5px;">자동 배치</button>
+                            <p class="hint" style="margin: 5px 0 0 0; font-size: 0.9em; line-height: 1.3;">
+                                * 직원을 클릭해 평일/주말 순서를 지정하세요.<br>
+                                * 드래그 앤 드롭으로 달력 수동 지정도 가능합니다.
+                            </p>
+                        </div>
+                        <div style="flex: 3; display: flex; flex-direction: column; gap: 10px;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <div style="display: flex; gap: 10px;">
+                                    <input type="month" id="dutyMonth" class="overtime-input" style="width: 130px;">
+                                    <button id="btnGenerateDutyCal" class="primary-btn">달력 생성</button>
+                                </div>
+                                <div style="display: flex; gap: 10px;">
+                                    <button id="btnExportDutyListExcel" class="primary-btn" style="background-color: #27ae60;">💾 명단 다운로드</button>
+                                    <button id="btnExportDutyCalExcel" class="primary-btn" style="background-color: #8e44ad;">💾 달력 다운로드</button>
+                                </div>
+                            </div>
+                            <div id="dutyCalendarContainer" style="overflow-x: auto;"></div>
+                            <div id="dutyCalendarSummary" style="margin-top: 10px; padding-top: 15px; border-top: 1px solid #ddd;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 하위 탭: 당직수당 지급 -->
+                <div id="duty-allowance" class="sub-tab-content" style="display: none;">
+                    <div class="input-group">
+                        <label for="dutyAllowanceFile">당직 내역 엑셀 파일 업로드</label>
+                        <input type="file" id="dutyAllowanceFile" accept=".xls,.xlsx">
+                        <span id="dutyAllowanceFileName" class="file-name-display"></span>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button id="btnProcessDutyAllowance" class="primary-btn">당직 내역서 생성</button>
+                        <button id="btnPrintDutyHistory" class="primary-btn" style="background-color: #34495e;" title="당직 내역을 요약하여 인쇄합니다.">🖨️ 당직내역서 인쇄</button>
+                        <button id="btnPrintDutyAllowance" class="primary-btn" style="background-color: #27ae60;" title="당직수당 지급내역서를 인쇄합니다.">🖨️ 당직수당 지급내역서 인쇄</button>
+                    </div>
+                    <div id="dutyAllowanceStatus" class="status-msg"></div>
+                    <div id="dutyAllowanceTable" class="table-container" style="margin-top: 20px;"></div>
+                </div>
+            </div>
+
+            <!-- 탭 3: 초과근무수당 -->
+            <div id="tab-overtime" class="tab-content card">
+                <h2>초과근무수당 산출
+                    <span class="tooltip">❓
+                        <span class="tooltiptext">💡 <b>사용 안내</b>
+1. '직원신상명세서' 탭에서 직원 목록을 먼저 불러오세요.
+2. [초과근무목록(실적분)], [초과근무정산내역(정액분)], [개인별근무상황내역] 3개 파일을 업로드합니다.
+3. 행정복지센터의 경우 당직명령부 파일 또한 업로드 해 주세요. (총 4개)
+4. <b>시간외근무조정</b>을 통해 개인별 시간을 조정합니다.</span>
+                    </span>
+                </h2>
+                <div class="input-group" style="margin-bottom: 15px;">
+                    <label for="overtimeFiles">초과근무 산출 데이터 업로드 <span style="font-weight:normal; font-size: 0.9em;">(초과근무목록, 초과근무정산내역, 개인별근무상황내역<span id="dutyOrderRequiredText" style="display:none; color:#e74c3c;">, 당직명령부 필수</span> 다중 선택)</span></label>
+                    <input type="file" id="overtimeFiles" accept=".xls,.xlsx" multiple>
+                    <span id="overtimeFilesName" class="file-name-display"></span>
+                </div>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button id="btnProcessOvertime" class="primary-btn">초과근무 데이터 정리 및 산출</button>
+                    <button id="btnRestoreOvertimeCorrections" class="primary-btn" style="background-color: #8e44ad; display: none;" title="직전에 수기로 보정한 내역을 복구하여 재적용합니다.">🔄 이전 보정 복구</button>
+                    <button id="btnPrintStatement" class="primary-btn" style="background-color: #d35400;" title="초과근무수당 지급내역서를 인쇄합니다.">🖨️ 지급내역서 인쇄</button>
+                    <button id="btnDownloadOvertime" class="primary-btn btn-excel">💾 엑셀 다운로드</button>
+                </div>
+                <div id="overtimeStatus" class="status-msg"></div>
+                <div id="overtimeResultTable" class="table-container" style="margin-top: 20px; overflow-x: auto;"></div>
+            </div>
+
+            <!-- 탭 4: 특근매식비 -->
+            <div id="tab-meal" class="tab-content card">
+                <h2>특근매식비 산출
+                    <span class="tooltip">❓
+                        <span class="tooltiptext">💡 <b>사용 안내</b>
+1. 초과근무목록(실적분) 엑셀을 업로드합니다.
+2. 산출 버튼을 누르면 식사 지급 조건(평일 조/석식, 휴일)에 맞춰 자동 계산됩니다.
+3. 환경설정 탭에서 특근매식비 단가를 변경할 수 있습니다.</span>
+                    </span>
+                </h2>
+                <div class="input-group">
+                    <label for="mealOvertimeFile">초과근무목록 (.xls/.xlsx)</label>
+                    <div style="display: flex; gap: 10px; align-items: flex-start;">
+                        <div style="flex: 1;">
+                            <input type="file" id="mealOvertimeFile" accept=".xls,.xlsx">
+                            <span id="mealOvertimeFileName" class="file-name-display"></span>
+                        </div>
+                        <button id="btnLoadOvertimeForMeal" class="primary-btn" style="background-color: #8e44ad; padding: 6px 12px; font-size: 0.9em; white-space: nowrap;" title="초과근무수당 탭에서 이미 업로드한 데이터를 사용합니다.">📋 초과근무 데이터에서 불러오기</button>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button id="btnProcessMeal" class="primary-btn">특근매식비 데이터 정리 및 산출</button>
+                    <button id="btnPrintMeal" class="primary-btn" style="background-color: #d35400;" title="급식제공확인서를 인쇄합니다.">🖨️ 급식제공확인서 인쇄</button>
+                    <button id="btnPrintMealPayment" class="primary-btn" style="background-color: #d35400;" title="급식비 지급내역서를 인쇄합니다.">🖨️ 급식비 지급내역서 인쇄</button>
+                    <button id="btnDownloadMeal" class="primary-btn btn-excel">💾 엑셀 다운로드</button>
+                </div>
+                <div id="mealStatus" class="status-msg"></div>
+                <div style="display: flex; gap: 20px; margin-top: 20px;">
+                    <div id="mealResultTable" class="table-container" style="flex: 3; overflow-x: auto;"></div>
+                    <div style="flex: 1;">
+                        <div id="mealSummaryTable" class="table-container"></div>
+                        <div id="mealDateSummaryTable" class="table-container" style="margin-top: 20px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 탭 5: 관내출장 -->
+            <div id="tab-local-trip" class="tab-content card">
+                <h2>관내출장비 산출
+                    <span class="tooltip">❓
+                        <span class="tooltiptext">💡 <b>사용 안내</b>
+1. 관내출장내역 엑셀을 업로드합니다.
+2. 식별번호와 시간을 분석해 상시/미상시를 자동 분류하고 여비를 계산합니다.
+3. [거리 검증] 버튼을 누르면 왕복 2km 미만 의심 출장지를 찾아냅니다.</span>
+                    </span>
+                </h2>
+                <div class="input-group">
+                    <label for="localTripFile">관내출장내역 (.xls/.xlsx)</label>
+                    <input type="file" id="localTripFile" accept=".xls,.xlsx">
+                    <span id="localTripFileName" class="file-name-display"></span>
+                </div>
+                <button id="btnProcessLocalTrip" class="primary-btn">관내출장 데이터 분석 및 산출</button>
+                <div id="localTripStatus" class="status-msg"></div>
+                <div style="display: flex; gap: 20px; margin-top: 20px; align-items: flex-start;">
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 10px; overflow-x: hidden;">
+                        <div id="localTripFilterContainer" style="display: none; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: space-between;">
+                            <label style="font-size: 0.9em; font-weight: bold;">결과 내 필터:</label>
+                            <input type="text" id="ltFilterName" placeholder="성명 검색" class="overtime-input" style="width: 100px;">
+                            <input type="text" id="ltFilterId" placeholder="식별번호 검색" class="overtime-input" style="width: 120px;">
+                            <button id="btnShowLtSummary" class="primary-btn" style="background-color: #3498db;">📊 개인별 요약</button>
+                            <button id="btnOpenLtPrint" class="primary-btn" style="background-color: #d35400;" title="관내출장 내역서 및 지급내역서를 인쇄합니다.">🖨️ 관내출장 출력</button>
+                            <button id="btnVerifyDistance" class="primary-btn" style="background-color: #f39c12;" title="왕복 2km 미만 의심 출장지를 검증합니다.">의심 출장지 거리 검증 (2km)</button>
+                            <button id="btnRestoreLocalTripCorrections" class="primary-btn" style="background-color: #8e44ad; display: none;" title="직전에 수정했던 교통비 실비 및 여비 제외 여부를 복구합니다.">🔄 이전 보정 복구</button>
+                            <button id="btnDownloadLocalTrip" class="primary-btn btn-excel">💾 엑셀 다운로드</button>
+                        </div>
+                        <div id="localTripResultTable" class="table-container" style="overflow-x: auto;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 탭 6: 관외출장 -->
+            <div id="tab-out-trip" class="tab-content card">
+                <h2>관외출장비 산출
+                    <span class="tooltip">❓
+                        <span class="tooltiptext">💡 <b>사용 안내</b>
+1. 출장자의 정보(일시, 지역, 차량 등)와 실비청구액을 입력합니다.
+2. 시간에 따른 식비 차감, 차량 사용 시 일비 차감, 숙박 상한액이 자동 적용됩니다.
+3. [항목 추가]를 눌러 여러 명의 내역을 누적하여 계산 및 다운로드할 수 있습니다.</span>
+                    </span>
+                </h2>
+                
+                <div class="table-container" style="margin-bottom: 20px;">
+                    <h3 style="margin-top:0;">신규 출장 내역 입력</h3>
+                    <table class="data-table" style="background-color: #f8f9fa;">
+                        <thead>
+                            <tr>
+                                <th style="width: 80px;">성명</th>
+                                <th>출장지</th>
+                                <th style="width: 90px;">분류</th>
+                                <th style="width: 120px;">시작일</th>
+                                <th style="width: 80px;">시간</th>
+                                <th style="width: 120px;">종료일</th>
+                                <th style="width: 80px;">시간</th>
+                                <th style="width: 70px;">차량</th>
+                                <th style="width: 60px;">숙박수</th>
+                                <th style="width: 90px;">숙박비</th>
+                                <th style="width: 90px;">운임비</th>
+                                <th style="width: 80px;">제공식사</th>
+                                <th style="width: 60px;">추가</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><input type="text" id="otInputName" style="width: 100%; padding: 4px;" placeholder="성명"></td>
+                                <td><input type="text" id="otInputDest" style="width: 100%; padding: 4px;" placeholder="예: 행정안전부"></td>
+                                <td>
+                                    <select id="otInputDestType" class="overtime-input" style="width: 100%; padding: 4px;">
+                                        <option value="기타">기타</option>
+                                        <option value="서울">서울</option>
+                                        <option value="광역시">광역시</option>
+                                    </select>
+                                </td>
+                                <td><input type="date" id="otInputStartDate" style="width: 100%; padding: 4px;"></td>
+                                <td><input type="time" id="otInputStartTime" value="09:00" style="width: 100%; padding: 4px;"></td>
+                                <td><input type="date" id="otInputEndDate" style="width: 100%; padding: 4px;"></td>
+                                <td><input type="time" id="otInputEndTime" value="18:00" style="width: 100%; padding: 4px;"></td>
+                                <td>
+                                    <select id="otInputVehicle" class="overtime-input" style="width: 100%; padding: 4px;">
+                                        <option value="N">미이용</option>
+                                        <option value="Y">이용</option>
+                                    </select>
+                                </td>
+                                <td><input type="number" id="otInputLodgingDays" value="0" min="0" style="width: 100%; padding: 4px;"></td>
+                                <td><input type="number" id="otInputLodgingCost" value="0" min="0" step="1000" style="width: 100%; padding: 4px;"></td>
+                                <td><input type="number" id="otInputTransportCost" value="0" min="0" step="1000" style="width: 100%; padding: 4px;"></td>
+                                <td><input type="number" id="otInputProvidedMeals" value="0" min="0" max="30" style="width: 100%; padding: 4px;" placeholder="식"></td>
+                                <td><button id="btnOutTripAdd" class="primary-btn" style="padding: 4px; width: 100%;">추가</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 10px;">
+                    <button id="btnOutTripClear" class="primary-btn" style="background-color: #95a5a6;">전체 초기화</button>
+                    <button id="btnPrintOutTrip" class="primary-btn" style="background-color: #d35400;" title="관외출장 지급내역서를 인쇄합니다.">🖨️ 지급내역서 인쇄</button>
+                    <button id="btnDownloadOutTrip" class="primary-btn btn-excel">💾 엑셀 다운로드</button>
+                </div>
+
+                <div id="outTripResultTable" class="table-container" style="overflow-x: auto;"></div>
+                <div id="outTripSummaryTable" class="table-container" style="margin-top: 20px;"></div>
+            </div>
+
+            <!-- 탭 7: 환경 설정 -->
+            <div id="tab-settings" class="tab-content card">
+                <h2>환경 설정
+                    <span class="tooltip">❓
+                        <span class="tooltiptext">💡 <b>사용 안내</b>
+1. 급수별 단가, 매식비, 여비 단가, API 키 등을 설정하는 공간입니다.
+2. 값을 수정한 뒤 반드시 [설정 저장] 버튼을 눌러야 적용됩니다.
+3. 모든 설정값은 로컬 저장소에 안전하게 자동 저장됩니다.</span>
+                    </span>
+                </h2>
+                <p class="hint">설정값은 로컬 저장소에 자동 저장됩니다.</p>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button id="btnExportSettings" class="primary-btn" style="background-color: #27ae60;">💾 설정 백업(다운로드)</button>
+                    <button id="btnImportSettings" class="primary-btn" style="background-color: #8e44ad;">📂 설정 복구(업로드)</button>
+                    <input type="file" id="importSettingsFile" accept=".json" style="display: none;">
+                    <button id="btnOpenStoreFolder" class="primary-btn" style="background-color: #f39c12;">📁 저장 폴더 열기 (자동백업 폴더)</button>
+                    <button id="btnFactoryReset" class="primary-btn" style="background-color: #c0392b;">⚠️ 데이터 완전 초기화</button>
+                </div>
+                
+                <h3>기본 설정 및 거래처 정보</h3>
+                <div id="commonSettings" style="display: flex; align-items: flex-start; justify-content: flex-start; gap: 50px;">
+                    <div style="display: flex; flex-direction: column; gap: 20px; flex: 1;">
+                        <div class="setting-row" style="display: flex; align-items: center; justify-content: flex-start; gap: 20px; margin: 0;">
+                            <label for="settingDeptName" style="font-weight: bold; width: 150px;">부서명</label>
+                            <div style="display: flex; gap: 5px; width: 300px;">
+                                <input type="text" id="settingDeptName" placeholder="예: 가가과 / 나나동" style="flex: 1;">
+                                <button id="btnSearchAddress" class="primary-btn" style="padding: 0 10px;">주소 검색</button>
+                            </div>
+                        </div>
+                        <div class="setting-row" style="display: flex; align-items: center; justify-content: flex-start; gap: 20px; margin: 0;">
+                            <label for="settingDeptType" style="font-weight: bold; width: 150px;">소속부서 분류</label>
+                            <select id="settingDeptType" style="width: 300px; padding: 4px;" class="overtime-input">
+                                <option value="실과">본청 (남구청)</option>
+                                <option value="동">동 행정복지센터</option>
+                            </select>
+                        </div>
+                        <div class="setting-row" style="display: flex; align-items: center; justify-content: flex-start; gap: 20px; margin: 0;">
+                            <label for="settingStartAddress" style="font-weight: bold; width: 150px;">기본주소 (출장 시작점)</label>
+                            <input type="text" id="settingStartAddress" placeholder="예: 울산광역시 남구 돋질로 233" style="width: 300px;">
+                        </div>
+                        
+                        <hr style="margin: 0; border: 0; border-top: 1px dashed #ccc;">
+                        
+                        <div style="display: flex; flex-direction: column; gap: 5px; border: 1px solid #ccc; padding: 10px; border-radius: 4px; background-color: #fdfefe;">
+                            <div id="vendorToggleHeader" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <label style="font-weight: bold; font-size: 1.1em; cursor: pointer;">거래처 정보 (급식제공확인서용)</label>
+                                    <p class="hint" style="margin-top: 0; margin-bottom: 0; color: #e74c3c; font-weight: bold;">※ 미입력 시 특근매식비 계산은 가능, 지출서류 인쇄 불가</p>
+                                </div>
+                                <span id="vendorToggleIcon" style="font-size: 1.2em; font-weight: bold; color: #2980b9;">▼</span>
+                            </div>
+                            <div id="vendorSettings" style="display: none; margin-top: 15px; border-top: 1px dashed #eee; padding-top: 15px;">
+                                <div id="vendorList"></div>
+                                <button id="btnAddVendor" class="primary-btn" style="font-size: 0.9em; padding: 5px 10px; background-color: #3498db; margin-top: 5px;">+ 거래처 추가</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 15px;">
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <label style="font-weight: bold;">지도 미리보기</label>
+                            <div id="mapPreview" style="width: 750px; height: 360px; background-color: #eee; border: 1px solid #ccc; border-radius: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                                <span style="color: #7f8c8d; font-size: 0.9em; text-align: center;">기본주소를 입력하면<br>지도가 표시됩니다.</span>
+                            </div>
+                        </div>
+                        <button id="btnSaveSettings" class="primary-btn" style="width: 100%; height: 60px; font-size: 1.4em; background-color: #2980b9; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">설정 저장</button>
+                    </div>
+                </div>
+
+                <hr style="margin: 20px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="margin: 0; color: #e74c3c;">관리자 전용 설정</h3>
+                    <div>
+                        <button id="btnAdminLogin" class="primary-btn" style="background-color: #34495e; padding: 5px 15px; font-size: 0.9em;">관리자 로그인</button>
+                        <button id="btnAdminLogout" class="primary-btn" style="background-color: #7f8c8d; padding: 5px 15px; font-size: 0.9em; display: none;">로그아웃</button>
+                    </div>
+                </div>
+
+                <div id="adminSettingsSection" style="display: none; margin-top: 15px; padding: 15px; background-color: #fdfefe; border: 1px dashed #e74c3c; border-radius: 8px;">
+                    <h4 style="margin-top: 0;">급수별 시간외수당 단가</h4>
+                    <div id="unitPriceSettings"></div>
+
+                    <hr style="margin: 15px 0;">
+                    <h4>기타 설정 (관리자용)</h4>
+                    <div id="adminOtherSettings"></div>
+
+                    <hr style="margin: 15px 0;">
+                    <h4>관내출장 여비 단가</h4>
+                    <div id="localTripSettings"></div>
+
+                    <hr style="margin: 15px 0;">
+                    <h4>관외출장 여비 단가</h4>
+                    <div id="outTripSettings"></div>
+
+                    <hr style="margin: 15px 0;">
+                    <h4>카카오 지도 API 설정 (자동 거리 계산용)</h4>
+                    <div id="kakaoApiSettings"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 직책 설정 모달 -->
+    <div id="roleModal" class="modal-overlay">
+        <div class="modal-content card">
+            <h3 style="margin-top: 0;">직책 담당자 선택</h3>
+            <p class="hint">명세서에 기록할 직책 담당자를 선택하세요.</p>
+            <div class="input-group">
+                <label for="selManager">과장 (또는 동장)</label>
+                <select id="selManager" class="role-select"></select>
+            </div>
+            <div class="input-group">
+                <label for="selTeamLeader">주무계장 (또는 사무장)</label>
+                <select id="selTeamLeader" class="role-select"></select>
+            </div>
+            <div class="input-group">
+                <label for="selClerk">서무</label>
+                <select id="selClerk" class="role-select"></select>
+            </div>
+            <button id="btnConfirmRoles" class="primary-btn" style="margin-top: 10px;">확인 및 명세서 생성</button>
+        </div>
+    </div>
+
+    <!-- 인쇄 설정 모달 -->
+    <div id="printModal" class="modal-overlay">
+        <div class="modal-content card">
+            <h3 style="margin-top: 0;">지급내역서 인쇄 설정</h3>
+            <div class="input-group">
+                <label for="printTargetMonth">지급대상연월</label>
+                <input type="month" id="printTargetMonth">
+            </div>
+            <div class="input-group">
+                <label for="printCreationDate">작성일자</label>
+                <input type="date" id="printCreationDate">
+            </div>
+            <button id="btnConfirmPrint" class="primary-btn" style="margin-bottom: 10px;">인쇄 미리보기</button>
+            <button id="btnCancelPrint" class="primary-btn" style="background-color: #95a5a6;">취소</button>
+        </div>
+    </div>
+
+    <!-- 특근매식비 인쇄 설정 모달 -->
+    <div id="printMealModal" class="modal-overlay">
+        <div class="modal-content card" style="width: 700px; max-width: 95%;">
+            <h3 style="margin-top: 0;">급식제공확인서 양식 생성</h3>
+            <div style="display: flex; gap: 15px;">
+                <div class="input-group" style="flex: 1;">
+                    <label for="printMealMonth">급식기간 연월</label>
+                    <input type="month" id="printMealMonth">
+                </div>
+                <div class="input-group" style="flex: 1;">
+                    <label for="printMealCreationDate">작성일자</label>
+                    <input type="date" id="printMealCreationDate">
+                </div>
+            </div>
+            <div class="input-group" style="margin-bottom: 5px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label style="margin: 0;">출력할 거래처 선택 및 식수 배분</label>
+                    <button id="btnSaveMealDistribution" class="primary-btn" style="background-color: #2980b9; padding: 4px 10px; font-size: 0.9em;">💾 배분 저장</button>
+                </div>
+                <div id="printMealVendorCheckboxes" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 5px; margin-bottom: 10px;"></div>
+            </div>
+            <div id="printMealDistributionContainer" style="max-height: 400px; overflow-y: auto; display: none;">
+                <table class="data-table" id="printMealDistTable">
+                    <thead><tr id="printMealDistHead"></tr></thead>
+                    <tbody id="printMealDistBody"></tbody>
+                    <tfoot id="printMealDistFoot"></tfoot>
+                </table>
+            </div>
+            <p class="hint" style="margin-top: 10px;">하나의 칸을 수정하면 나머지 칸이 원본 식수에 맞게 자동 조정됩니다.<br>식수가 0인 일자는 해당 거래처의 출력 양식에서 자동으로 제외됩니다.</p>
+            <button id="btnConfirmPrintMeal" class="primary-btn" style="margin-bottom: 10px;">선택 거래처 일괄 양식 생성</button>
+            <button id="btnCancelPrintMeal" class="primary-btn" style="background-color: #95a5a6;">취소</button>
+        </div>
+    </div>
+
+    <!-- 관내출장 요약 모달 -->
+    <div id="ltSummaryModal" class="modal-overlay">
+        <div class="modal-content card" style="width: 800px; max-width: 95%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 style="margin: 0;">개인별 관내출장 여비 합계</h3>
+                <button class="btn-close-modal primary-btn" style="background-color: #e74c3c; padding: 5px 10px;">닫기</button>
+            </div>
+            <div id="localTripSummaryTable" class="table-container" style="max-height: 500px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+    <!-- 관내출장 인쇄 설정 모달 -->
+    <div id="printLtModal" class="modal-overlay">
+        <div class="modal-content card">
+            <h3 style="margin-top: 0;">관내출장 출력 설정</h3>
+            <div class="input-group">
+                <label for="printLtMonth">출장 연월</label>
+                <input type="month" id="printLtMonth">
+            </div>
+            <div class="input-group">
+                <label for="printLtDate">작성 일자</label>
+                <input type="date" id="printLtDate">
+            </div>
+            <label style="font-weight:bold; display:block; margin-bottom:5px;">출력할 문서를 선택하세요</label>
+            <div style="display:flex; gap:10px; margin-bottom:10px;">
+                <button id="btnLtPrintNormalList" class="primary-btn" style="flex:1;">일반출장 내역서</button>
+                <button id="btnLtPrintNormalPay" class="primary-btn" style="flex:1;">일반출장 지급내역서</button>
+            </div>
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <button id="btnLtPrintSangsiList" class="primary-btn" style="flex:1; background-color:#8e44ad;">상시출장 내역서</button>
+                <button id="btnLtPrintSangsiPay" class="primary-btn" style="flex:1; background-color:#8e44ad;">상시출장 지급내역서</button>
+            </div>
+            <button id="btnCancelLtPrint" class="primary-btn" style="background-color:#95a5a6; width:100%;">취소</button>
+        </div>
+    </div>
+
+    <!-- 관외출장 인쇄 설정 모달 -->
+    <div id="printOtModal" class="modal-overlay">
+        <div class="modal-content card">
+            <h3 style="margin-top: 0;">관외출장 지급내역서 인쇄 설정</h3>
+            <div class="input-group">
+                <label for="printOtMonth">출장 연월</label>
+                <input type="month" id="printOtMonth">
+            </div>
+            <div class="input-group">
+                <label for="printOtDate">작성 일자</label>
+                <input type="date" id="printOtDate">
+            </div>
+            <button id="btnConfirmPrintOt" class="primary-btn" style="margin-bottom: 10px;">인쇄 미리보기</button>
+            <button id="btnCancelPrintOt" class="primary-btn" style="background-color: #95a5a6;">취소</button>
+        </div>
+    </div>
+
+    <!-- 당직 예외 기간 관리 모달 -->
+    <div id="dutyExclusionModal" class="modal-overlay">
+        <div class="modal-content card" style="width: 600px; max-width: 95%;">
+            <h3 style="margin-top: 0;">당직 예외(제외) 기간 관리</h3>
+            <p class="hint">출장, 휴가 등으로 당직을 설 수 없는 직원의 예외 기간을 설정합니다.<br>
+            - <b>대기열 우선 배정</b>: 예외 기간이 끝난 후 다시 차례가 도래하면 대기하다가 최우선으로 투입됩니다.<br>
+            - <b>순번 건너뛰기</b>: 예외 기간에 차례가 오면 해당 턴은 완전히 건너뛰고 다음 사람으로 넘어갑니다.</p>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px; align-items: center;">
+                <select id="excEmployee" class="overtime-input" style="flex: 1;"></select>
+                <input type="date" id="excStartDate" class="overtime-input" style="flex: 1;">
+                <span>~</span>
+                <input type="date" id="excEndDate" class="overtime-input" style="flex: 1;">
+                <select id="excType" class="overtime-input" style="flex: 1.2;">
+                    <option value="skip" selected>순번 건너뛰기</option>
+                    <option value="queue">대기열 우선 배정</option>
+                </select>
+                <button id="btnAddExclusion" class="primary-btn" style="flex: none;">추가</button>
+            </div>
+            <table class="data-table" style="font-size: 0.9em;">
+                <thead><tr><th>성명</th><th>제외 시작일</th><th>제외 종료일</th><th>방식</th><th>관리</th></tr></thead>
+                <tbody id="dutyExclusionList"></tbody>
+            </table>
+            <div style="margin-top: 15px; text-align: right;">
+                <button id="btnCloseExclusionModal" class="primary-btn" style="background-color: #95a5a6;">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 직원 초과근무 상세 내역 모달 -->
+    <div id="empOvertimeHistoryModal" class="modal-overlay">
+        <div class="modal-content card" style="width: 1000px; max-width: 95%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div>
+                    <h3 style="margin: 0;" id="empOvertimeHistoryTitle">직원 초과근무 상세 내역</h3>
+                    <p class="hint" style="margin: 5px 0 0 0;">수당시간을 직접 수정하거나 버튼을 이용해 예외사항을 보정 및 롤백할 수 있습니다.</p>
+                </div>
+                <button id="btnCloseHistory" class="primary-btn" style="background-color: #e74c3c; padding: 5px 10px;">닫기</button>
+            </div>
+            <div style="display: flex; gap: 15px; font-size: 0.9em; margin-bottom: 10px; flex-wrap: wrap;">
+                <span style="background-color: #fffacd; padding: 2px 5px; border-radius: 3px; border: 1px solid #ddd;">■ 가족사랑의 날 대상</span>
+                <span style="background-color: #e6e6fa; padding: 2px 5px; border-radius: 3px; border: 1px solid #ddd;">■ 기타 불가피한 사유 대상 (총초과 4h 초과)</span>
+                <span style="background: linear-gradient(90deg, #fffacd 50%, #e6e6fa 50%); padding: 2px 5px; border-radius: 3px; border: 1px solid #ddd;">■ 중복 대상 (가족사랑 + 4h 초과)</span>
+            </div>
+            <div id="empOvertimeHistoryTable" class="table-container" style="max-height: 500px; overflow-y: auto;"></div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
+                <div style="display: flex; gap: 5px;">
+                    <button id="btnApplyFamilyDaySelected" class="primary-btn" style="background-color: #f39c12; font-size: 0.9em; padding: 8px 12px;">선택 항목 '가족사랑의 날' 적용</button>
+                    <button id="btnApplyFamilyDayAll" class="primary-btn" style="background-color: #e67e22; font-size: 0.9em; padding: 8px 12px; margin-left: 5px;">전체 '가족사랑의 날' 적용</button>
+                    <button id="btnRollbackSelected" class="primary-btn" style="background-color: #95a5a6; font-size: 0.9em; padding: 8px 12px; margin-left: 15px;">선택 롤백</button>
+                    <button id="btnRollbackAll" class="primary-btn" style="background-color: #7f8c8d; font-size: 0.9em; padding: 8px 12px;">전체 롤백</button>
+                </div>
+                <button id="btnSaveHistoryCorrections" class="primary-btn">보정 내역 저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 관리자 로그인 모달 -->
+    <div id="adminLoginModal" class="modal-overlay">
+        <div class="modal-content card" style="width: 300px;">
+            <h3 style="margin-top: 0;">관리자 로그인</h3>
+            <div class="input-group">
+                <label for="adminLoginId">아이디</label>
+                <input type="text" id="adminLoginId" placeholder="아이디를 입력하세요">
+            </div>
+            <div class="input-group" style="margin-bottom: 10px;">
+                <label for="adminLoginPw">비밀번호</label>
+                <div style="position: relative;">
+                    <input type="password" id="adminLoginPw" placeholder="비밀번호를 입력하세요" style="width: 100%; padding-right: 30px;">
+                    <i class="fa-solid fa-eye-slash toggle-password" data-target="adminLoginPw" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #7f8c8d;"></i>
+                </div>
+            </div>
+            <div id="adminLoginError" style="color: #e74c3c; font-size: 0.85em; font-weight: bold; margin-bottom: 15px; display: none; text-align: left;">아이디 또는 비밀번호가 틀렸습니다.</div>
+            <button id="btnConfirmAdminLogin" class="primary-btn" style="width: 100%; margin-bottom: 10px;">로그인</button>
+            <button id="btnCancelAdminLogin" class="primary-btn" style="width: 100%; background-color: #95a5a6;">취소</button>
+        </div>
+    </div>
+
+    <!-- 당직 인쇄 설정 모달 -->
+    <div id="printDutyModal" class="modal-overlay">
+        <div class="modal-content card">
+            <h3 style="margin-top: 0;">당직수당 지급내역서 인쇄 설정</h3>
+            <div class="input-group">
+                <label for="printDutyMonth">지급대상연월</label>
+                <input type="month" id="printDutyMonth">
+            </div>
+            <div class="input-group">
+                <label for="printDutyDate">작성일자</label>
+                <input type="date" id="printDutyDate">
+            </div>
+            <button id="btnConfirmPrintDuty" class="primary-btn" style="margin-bottom: 10px;">인쇄 미리보기</button>
+            <button id="btnCancelPrintDuty" class="primary-btn" style="background-color: #95a5a6;">취소</button>
+        </div>
+    </div>
+
+    <!-- 당직 자동 배치 설정 모달 -->
+    <div id="dutyAutoAssignModal" class="modal-overlay">
+        <div class="modal-content card" style="width: 400px;">
+            <h3 style="margin-top: 0;">당직 자동 배치 설정</h3>
+            <p class="hint">전월 마지막 당직자를 선택해주세요. 해당 직원의 <b>다음 순번</b>부터 이번 달 당직이 시작됩니다.</p>
+            <div class="input-group">
+                <label for="autoAssignPrevWeekday" id="autoAssignLabelWeekday">전월 평일 마지막 당직자</label>
+                <select id="autoAssignPrevWeekday" class="overtime-input" style="width: 100%;"></select>
+            </div>
+            <div class="input-group" id="autoAssignPrevWeekendGroup">
+                <label for="autoAssignPrevWeekend">전월 주말 마지막 당직자</label>
+                <select id="autoAssignPrevWeekend" class="overtime-input" style="width: 100%;"></select>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button id="btnConfirmAutoAssign" class="primary-btn" style="flex: 1;">자동 배치 실행</button>
+                <button id="btnCancelAutoAssign" class="primary-btn" style="flex: 1; background-color: #95a5a6;">취소</button>
+            </div>
+        </div>
+    </div>
+
+<!-- 스크립트 로드 (의존성 순서: DB 코어 -> 기능 모듈 -> UI/보조) -->
+    <script src="db.js"></script>
+    <script src="overtime.js"></script>
+    <script src="meal.js"></script>
+    <script src="localtrip.js"></script>
+    <script src="outtrip.js"></script>
+    <script src="duty.js"></script>
+    <script src="agent.js"></script>
+    <script src="opp.js"></script>
+</body>
+</html>
